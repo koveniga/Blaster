@@ -28,9 +28,13 @@ def check_port_v6(host, port, timeout=3):
         return 0
 
 def resolve_hostname(hostname):
-    addr_info = socket.getaddrinfo(hostname, None)
-    ips = set(item[4][0] for item in addr_info)
-    return ips
+    try:
+        addr_info = socket.getaddrinfo(hostname, None)
+        ips = set(item[4][0] for item in addr_info)
+        return ips
+    except:
+        print(f"Ошибка резолва: {e}")
+        return []
 
 def filter_resolve(IPs,filter):
     result=[]
@@ -54,6 +58,9 @@ def simple_check(check_item,metrics_file):
     check_port=int(check_item.get('port'))
     check_timeout=int(check_item.get('timeout',3))
     IPs=filter_resolve(resolve_hostname(check_domain_name),check_item.get('filter_resolve',''))
+    if IPs==[]:
+        print('kia_simple_check{domain_name="',check_domain_name,'", port="',check_port,'", metric="success_check"} 0',' ',timestamp_ms,sep="",file=metrics_file)
+        return
     for IP in IPs:
         print('Checking:',IP,check_port,check_timeout)
         check=check_port_v6(IP,check_port,check_timeout)
@@ -128,6 +135,9 @@ def http_check(check_item,metrics_file):
     }
 
     IPs=filter_resolve(resolve_hostname(check_domain_name),check_item.get('filter_resolve',''))
+    if IPs==[]:
+        print('kia_http_check{domain_name="',check_domain_name,'", port="',check_port,'", metric="success_check"} 0',' ',timestamp_ms,sep="",file=metrics_file)
+        return
     for IP in IPs:
         print(f"Check '{check_domain_name}' on IP '{IP}'...")
         response=http_request(check_item,IP,check_scheme,check_port,custom_headers,check_url)
@@ -157,6 +167,10 @@ def proxy_check(check_item,metrics_file,T_IPs=[]):
         IPs=filter_resolve(resolve_hostname(check_item['proxy_domain_name']),'')
     else:
         IPs=T_IPs
+
+    if IPs==[]:
+        print('kia_proxy_check{domain_name="',check_domain_name,'", metric="success_check"} 0',' ',timestamp_ms,sep="",file=metrics_file)
+        return
 
     for IP in IPs:
         print(f"Check {check_item['url']} via proxy {IP}:{check_item['proxy_port']}...")
