@@ -100,24 +100,25 @@ def http_request(check_item,IP,scheme,port,custom_headers,url):
 def check_http_reponce(check_item,response):
     check_status_code=str(check_item.get('status_code',200))
     check_target_data=check_item.get('target_data','')
-    if str(response.status_code) == check_status_code:
-        if check_target_data == '':
+    if str(response.status_code) != check_status_code:
+        print(f"{response.status_code} != {check_status_code}")
+        return 0
+    if 'target_scheme' in check_item:
+        if response.url.startswith(f"{check_item['target_scheme']}://"):
+            print(f"Target scheme is not '{check_item['target_scheme']}'")
+            return 0
+    if check_target_data == '':
+        return 1
+    if check_status_code in ['301','302','307','308']:
+        if response.headers.get("Location") == check_target_data:
             return 1
         else:
-            if check_status_code in ['301','302','307','308']:
-                if response.headers.get("Location") == check_target_data:
-                    return 1
-                else:
-                    print('response.headers.get("Location") != check_target_data')
-                    return 0
-            else:
-                if check_target_data in response.text:
-                    return 1
-                else:
-                    print(f"'check_target_data' not found in response.text")
-                    return 0      
+            print('response.headers.get("Location") != check_target_data')
+            return 0
+    if check_target_data in response.text:
+        return 1
     else:
-        print(f"{response.status_code} != {check_status_code}")
+        print(f"'check_target_data' not found in response.text")
         return 0
 
 def http_check(check_item,metrics_file):
@@ -208,6 +209,7 @@ def dns_check(check_item,metrics_file):
 
 while True:
     print(datetime.now())
+    start=int(time.time())
     print('-----')
     config=load_configuration()
     cicle_timeout=config.get('global',{}).get('cicle_timeout',30)
@@ -256,8 +258,14 @@ while True:
             item['proxy_domain_name']='CHECK_BY_IP'
             proxy_check(item,f,item['proxy_ips'])
     f.close()
+
+    ends=int(time.time())-start
+    timestamp_ms = int(time.time() * 1000)
+    f=open('/tmp/proxy_results','a')
+    print(f"kia_cicle_time_seconds {ends} {timestamp_ms}",file=f)
+    f.close()
+
     os.system('cat /tmp/proxy_results >> /tmp/results')
 
     shutil.move('/tmp/results',METRICS_RESULT)
-
     time.sleep(cicle_timeout)
