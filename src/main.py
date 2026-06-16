@@ -5,6 +5,7 @@ import urllib3
 import os
 import shutil
 import requests
+import dns.resolver
 from datetime import datetime
 
 CONFIG_PATH=os.getenv('CONFIG_PATH', './config.yml')
@@ -189,7 +190,21 @@ def proxy_check(check_item,metrics_file,T_IPs=[]):
                 else:
                     print(f"{response.status_code} == {check_item['status_code']}")
                     print('kia_proxy_check{proxy="',check_item['proxy_domain_name'],'", IP="',IP,'",url="',check_item['url'],'",status_code="',check_item['status_code'],'",metric="success_check",login="',proxy_auth['user'],'"} 0 ',timestamp_ms,file=f,sep="")
-            
+
+def dns_check(check_item,metrics_file):
+    for dns_server in check_item['dns_servers']:
+        resolver = dns.resolver.Resolver(configure=False)
+        resolver.nameservers = [ dns_server ]
+        resolver.lifetime = 2.0
+        for domain in check_item['domains']:
+            try:
+                print(f"NS={dns_server} --> DOMAIN={domain}")
+                timestamp_ms = int(time.time() * 1000)
+                resolver.resolve(domain, 'A')
+                print('kia_dns_probe{dns_server="',dns_server,'",domain="',domain,'", metric="success_check"} 1 ',timestamp_ms,file=f,sep='')
+            except Exception as e:
+                print('kia_dns_probe{dns_server="',dns_server,'",domain="',domain,'", metric="success_check"} 0 ',timestamp_ms,file=f,sep='')
+                print(f"ОШИБКА DNS: {type(e).__name__} — {e}")
 
 while True:
     print(datetime.now())
@@ -201,6 +216,15 @@ while True:
     simple_checks=config.get('simple_checks',[])
     http_checks=config.get('http_checks',[])
     proxy_checks=config.get('proxy_checks',[])
+    dns_checks=config.get('dns_checks',[])
+
+    print('DNS Checks')
+    f=open('/tmp/dns_checks_results','w')
+    for item in dns_checks:
+        print(f"Check {item}")
+        dns_check(item,f)
+    f.close()
+    os.system("cat /tmp/dns_checks_results > /tmp/results")
 
     print('Simple checks')
     f=open('/tmp/simple_checks_results','w')
@@ -208,7 +232,7 @@ while True:
         print(f"Check {item}")
         simple_check(item,f)
     f.close()
-    os.system("cat /tmp/simple_checks_results > /tmp/results")
+    os.system("cat /tmp/simple_checks_results >> /tmp/results")
 
     print('HTTP checks')
     f=open('/tmp/http_checks_results','w')
