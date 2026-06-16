@@ -32,7 +32,7 @@ def resolve_hostname(hostname):
         addr_info = socket.getaddrinfo(hostname, None)
         ips = set(item[4][0] for item in addr_info)
         return ips
-    except:
+    except Exception as e:
         print(f"Ошибка резолва: {e}")
         return []
 
@@ -59,6 +59,7 @@ def simple_check(check_item,metrics_file):
     check_timeout=int(check_item.get('timeout',3))
     IPs=filter_resolve(resolve_hostname(check_domain_name),check_item.get('filter_resolve',''))
     if IPs==[]:
+        timestamp_ms = int(time.time() * 1000)
         print('kia_simple_check{domain_name="',check_domain_name,'", port="',check_port,'", metric="success_check"} 0',' ',timestamp_ms,sep="",file=metrics_file)
         return
     for IP in IPs:
@@ -136,6 +137,7 @@ def http_check(check_item,metrics_file):
 
     IPs=filter_resolve(resolve_hostname(check_domain_name),check_item.get('filter_resolve',''))
     if IPs==[]:
+        timestamp_ms = int(time.time() * 1000)
         print('kia_http_check{domain_name="',check_domain_name,'", port="',check_port,'", metric="success_check"} 0',' ',timestamp_ms,sep="",file=metrics_file)
         return
     for IP in IPs:
@@ -169,6 +171,7 @@ def proxy_check(check_item,metrics_file,T_IPs=[]):
         IPs=T_IPs
 
     if IPs==[]:
+        timestamp_ms = int(time.time() * 1000)
         print('kia_proxy_check{domain_name="',check_domain_name,'", metric="success_check"} 0',' ',timestamp_ms,sep="",file=metrics_file)
         return
 
