@@ -1,0 +1,6 @@
+services:
+  blaster:
+    build: .
+    command: sh -c "python3 /opt/main.py & python3 /opt/web.py"
+    volumes:
+      - ./config.yml:/etc/blaster.yml
