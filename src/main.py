@@ -188,6 +188,7 @@ while True:
     print('Simple checks')
     f=open('/tmp/simple_checks_results','w')
     for item in simple_checks:
+        print(f"Check {item}")
         simple_check(item,f)
     f.close()
     os.system("cat /tmp/simple_checks_results > /tmp/results")
@@ -195,6 +196,7 @@ while True:
     print('HTTP checks')
     f=open('/tmp/http_checks_results','w')
     for item in http_checks:
+        print(f"Check {item}")
         http_check(item,f)
     f.close()
     os.system('cat /tmp/http_checks_results >> /tmp/results')
@@ -202,6 +204,7 @@ while True:
     print('Proxy checks')
     f=open('/tmp/proxy_results','w')
     for item in proxy_checks:
+        print(f"Check {item}")
         if 'proxy_domain_names' in item:
             for proxy_domain_name in item['proxy_domain_names']:
                 item['proxy_domain_name']=proxy_domain_name
