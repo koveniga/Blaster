@@ -262,7 +262,9 @@ while True:
     ends=int(time.time())-start
     timestamp_ms = int(time.time() * 1000)
     f=open('/tmp/proxy_results','a')
+    print(f"blaster_version 0.4 {timestamp_ms}",file=f)
     print(f"kia_cicle_time_seconds {ends} {timestamp_ms}",file=f)
+    print(f"blaster_last_update {timestamp_ms}", file=f)
     f.close()
 
     os.system('cat /tmp/proxy_results >> /tmp/results')
