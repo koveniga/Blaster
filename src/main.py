@@ -13,6 +13,18 @@ METRICS_RESULT=os.getenv('METRICS_RESULT', './metrics')
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+def generate_metric_string(metric_name,labels,value):
+    timestamp_ms = int(time.time() * 1000)
+    result=f"{metric_name}"
+    if labels!={}:
+        result+="{"
+        for key in labels.keys():
+            result+=f"{key}=\"{labels[key]}\","
+        result=result[:-1]
+        result+="}"
+    result+=f" {value} {timestamp_ms}"
+    return result
+
 def check_port_v6(host, port, timeout=3):
     try:
         addr_info = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
@@ -138,20 +150,30 @@ def http_check(check_item,metrics_file):
     }
 
     IPs=filter_resolve(resolve_hostname(check_domain_name),check_item.get('filter_resolve',''))
+    metric_labels={
+      'domain_name': check_domain_name,
+      'port': check_port,
+      'follow_redirects': check_item.get('follow_redirects',False),
+      'target_scheme': check_item.get('target_scheme',''),
+      'target_data': check_item.get('target_data',''),
+      'metric': 'success_check'
+    }
     if IPs==[]:
         timestamp_ms = int(time.time() * 1000)
-        print('kia_http_check{domain_name="',check_domain_name,'", port="',check_port,'", metric="success_check"} 0',' ',timestamp_ms,sep="",file=metrics_file)
+        print(generate_metric_string('kia_http_check',metric_labels,'0'),file=metrics_file)
         return
     for IP in IPs:
         print(f"Check '{check_domain_name}' on IP '{IP}'...")
         response=http_request(check_item,IP,check_scheme,check_port,custom_headers,check_url)
         timestamp_ms = int(time.time() * 1000)
         if response!={}:
-            print('kia_http_check{domain_name="',check_domain_name,'", IP="',IP,'", port="',check_port,'",metric="status_code"} ',response.status_code,' ',timestamp_ms,sep="",file=metrics_file)
-            print('kia_http_check{domain_name="',check_domain_name,'", IP="',IP,'", port="',check_port,'",metric="success_check"} ', check_http_reponce(check_item,response),' ',timestamp_ms,sep="",file=metrics_file)
+            metric_labels['metric']='status_code'
+            print(generate_metric_string('kia_http_check',metric_labels,response.status_code),file=metrics_file)
+            metric_labels['metric']='success_check'
+            print(generate_metric_string('kia_http_check',metric_labels,check_http_reponce(check_item,response)),file=metrics_file)
         else:
             print("Request failed")
-            print('kia_http_check{domain_name="',check_domain_name,'", IP="',IP,'", port="',check_port,'",metric="success_check"} 0 ',timestamp_ms,sep="",file=metrics_file)
+            print(generate_metric_string('kia_http_check',metric_labels,'0'),file=metrics_file)
 
 def http_request_via_proxy(check_item,proxy_auth,proxy_ip):
     try:
