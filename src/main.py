@@ -104,7 +104,7 @@ def check_http_reponce(check_item,response):
         print(f"{response.status_code} != {check_status_code}")
         return 0
     if 'target_scheme' in check_item:
-        if response.url.startswith(f"{check_item['target_scheme']}://"):
+        if not response.url.startswith(f"{check_item['target_scheme']}://"):
             print(f"Target scheme is not '{check_item['target_scheme']}'")
             return 0
     if check_target_data == '':
