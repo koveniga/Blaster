@@ -153,9 +153,7 @@ def http_check(check_item,metrics_file):
     metric_labels={
       'domain_name': check_domain_name,
       'port': check_port,
-      'follow_redirects': check_item.get('follow_redirects',False),
-      'target_scheme': check_item.get('target_scheme',''),
-      'target_data': check_item.get('target_data',''),
+      "check_id": check_item.get('check_id'),
       'metric': 'success_check'
     }
     if IPs==[]:
