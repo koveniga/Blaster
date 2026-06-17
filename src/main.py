@@ -205,6 +205,10 @@ def proxy_check(check_item,metrics_file,T_IPs=[]):
       'status_code': check_item['status_code'],
       'metric': 'success_check'
     }
+    if 'add_labels' in check_item:
+        for custom_label in check_item['add_labels']:
+            z_label=[item.strip() for item in custom_label.split(':',1)]
+            labels[z_label[0]]=z_label[1]
     if IPs==[]:
         print(generate_metric_string('kia_proxy_check',labels,0),file=metrics_file)
         return

@@ -45,8 +45,10 @@ proxy_checks:
     proxy_ips:            # Priority: 3; if defined and undefined 'proxy_domain_names' and undefined 'proxy_domain_name': use this list of IPs for forward-proxy
       - 192.168.20.2
       - 192.168.20.3
-    add_headers:
+    add_headers: # for request
       - 'Header_name: Header_value'
+    add_labels:   ## For metrics output
+      - 'allow_fails: 3'
     proxy_port: 3128      # Port for all defined proxies
     proxy_protocol: 'http|socks5'
     proxy_auth:           # Cred for proxies (all IPs checks for all auth creds)
