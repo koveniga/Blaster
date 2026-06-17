@@ -163,9 +163,9 @@ def http_check(check_item,metrics_file):
         print(generate_metric_string('kia_http_check',metric_labels,'0'),file=metrics_file)
         return
     for IP in IPs:
+        metric_labels['IP']=IP
         print(f"Check '{check_domain_name}' on IP '{IP}'...")
         response=http_request(check_item,IP,check_scheme,check_port,custom_headers,check_url)
-        timestamp_ms = int(time.time() * 1000)
         if response!={}:
             metric_labels['metric']='status_code'
             print(generate_metric_string('kia_http_check',metric_labels,response.status_code),file=metrics_file)
