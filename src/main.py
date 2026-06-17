@@ -161,6 +161,10 @@ def http_request_via_proxy(check_item,proxy_auth,proxy_ip):
             "http": proxy_string,
             "https": proxy_string
         }
+        if 'add_headers' in check_item:
+            for custom_header in check_item['add_headers']:
+                header_content=[item.strip() for item in custom_header.split(':',1)]
+                session.headers.update({header_content[0]:header_content[1]})
         return session.get(check_item['url'],timeout=int(check_item.get('timeout',3)))
     except Exception as e:
         print(f"Ошибка: {e}")
