@@ -10,6 +10,7 @@ from datetime import datetime
 
 CONFIG_PATH=os.getenv('CONFIG_PATH', './config.yml')
 METRICS_RESULT=os.getenv('METRICS_RESULT', './metrics')
+GLOBAL_DNS_ERRORS=0
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -175,7 +176,8 @@ def http_check(check_item,metrics_file):
 
 def http_request_via_proxy(check_item,proxy_auth,proxy_ip):
     try:
-        proxy_string=f"http://{proxy_auth['user']}:{proxy_auth['password']}@{proxy_ip}:{check_item['proxy_port']}"
+        proxy_string=f"{check_item.get('proxy_protocol','http')}://{proxy_auth['user']}:{proxy_auth['password']}@{proxy_ip}:{check_item['proxy_port']}"
+        print(f"proxy_string='{proxy_string}'")
         session = requests.Session()
         session.proxies = {
             "http": proxy_string,
@@ -196,27 +198,35 @@ def proxy_check(check_item,metrics_file,T_IPs=[]):
     else:
         IPs=T_IPs
 
+    labels={
+      'proxy': check_item['proxy_domain_name'],
+      'IP': '',
+      'url': check_item['url'],
+      'status_code': check_item['status_code'],
+      'metric': 'success_check'
+    }
     if IPs==[]:
-        timestamp_ms = int(time.time() * 1000)
-        print('kia_proxy_check{domain_name="',check_domain_name,'", metric="success_check"} 0',' ',timestamp_ms,sep="",file=metrics_file)
+        print(generate_metric_string('kia_proxy_check',labels,0),file=metrics_file)
         return
 
     for IP in IPs:
+        labels['IP']=IP
         print(f"Check {check_item['url']} via proxy {IP}:{check_item['proxy_port']}...")
         for proxy_auth in check_item['proxy_auth']:
             print(f"Check with username '{proxy_auth['user']}'; id_label={proxy_auth['id_label']}...")
             response=http_request_via_proxy(check_item,proxy_auth,IP)
-            timestamp_ms = int(time.time() * 1000)
+            labels['id_label']=proxy_auth['id_label']
             if response=={}:
-                print('kia_proxy_check{proxy="',check_item['proxy_domain_name'],'", IP="',IP,'",url="',check_item['url'],'",status_code="',check_item['status_code'],'",metric="success_check", id_label="',proxy_auth['id_label'],'"} 0 ',timestamp_ms,file=f,sep="")
+                print(generate_metric_string('kia_proxy_check',labels,0),file=f)
             else:
                 if str(response.status_code) == str(check_item['status_code']):
-                    print('kia_proxy_check{proxy="',check_item['proxy_domain_name'],'", IP="',IP,'",url="',check_item['url'],'",status_code="',check_item['status_code'],'",metric="success_check",id_label="',proxy_auth['id_label'],'"} 1 ',timestamp_ms,file=f,sep="")
+                    print(generate_metric_string('kia_proxy_check',labels,1),file=f)
                 else:
                     print(f"{response.status_code} == {check_item['status_code']}")
-                    print('kia_proxy_check{proxy="',check_item['proxy_domain_name'],'", IP="',IP,'",url="',check_item['url'],'",status_code="',check_item['status_code'],'",metric="success_check",login="',proxy_auth['user'],'", id_label="',proxy_auth['id_label'],'"} 0 ',timestamp_ms,file=f,sep="")
+                    print(generate_metric_string('kia_proxy_check',labels,0),file=f)
 
 def dns_check(check_item,metrics_file):
+    global GLOBAL_DNS_ERRORS
     for dns_server in check_item['dns_servers']:
         resolver = dns.resolver.Resolver(configure=False)
         resolver.nameservers = [ dns_server ]
@@ -228,6 +238,7 @@ def dns_check(check_item,metrics_file):
                 resolver.resolve(domain, 'A')
                 print('kia_dns_probe{dns_server="',dns_server,'",domain="',domain,'", metric="success_check"} 1 ',timestamp_ms,file=f,sep='')
             except Exception as e:
+                GLOBAL_DNS_ERRORS+=1
                 print('kia_dns_probe{dns_server="',dns_server,'",domain="',domain,'", metric="success_check"} 0 ',timestamp_ms,file=f,sep='')
                 print(f"ОШИБКА DNS: {type(e).__name__} — {e}")
 
@@ -249,6 +260,8 @@ while True:
     for item in dns_checks:
         print(f"Check {item}")
         dns_check(item,f)
+    timestamp_ms = int(time.time() * 1000)
+    print('kia_global_errors ',GLOBAL_DNS_ERRORS,' ',timestamp_ms,file=f,sep='')
     f.close()
     os.system("cat /tmp/dns_checks_results > /tmp/results")
 
@@ -294,4 +307,5 @@ while True:
     os.system('cat /tmp/proxy_results >> /tmp/results')
 
     shutil.move('/tmp/results',METRICS_RESULT)
+    print(f"Cicle ends. Wait for {cicle_timeout} seconds for resume...")
     time.sleep(cicle_timeout)

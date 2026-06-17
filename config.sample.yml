@@ -22,6 +22,7 @@ http_checks:
     status_code: 301                            # if status code is 301,302,307,308, then target_data searchs in header "Location"
     target_data: 'https://some.example.com'     
   - domain_name: some2.example.com
+    check_id: 'asd' # uniq for label
     scheme: https # default is http
     port: 443 # default is:
               #    80 for scheme='http'
@@ -35,10 +36,6 @@ http_checks:
     basic_auth:            # default undefined
       username: 'test'     
       password: 'qweqweqwe'
-    proxy:    # use proxy for request; default: undefined
-      address: http://192.168.20.2
-      user: 'user1'
-      pass: 'pass1'
 
 proxy_checks:
   - proxy_domain_names:   # Priority: 1; if defined: resolves all proxy_domain_names which will used in checks
@@ -51,10 +48,11 @@ proxy_checks:
     add_headers:
       - 'Header_name: Header_value'
     proxy_port: 3128      # Port for all defined proxies
+    proxy_protocol: 'http|socks5'
     proxy_auth:           # Cred for proxies (all IPs checks for all auth creds)
       - user: user1
         password: pass1
-        label_id: 'check via user1'
+        label_id: 'check via user1' # uniq for label
       - user: user2
         password: pass2
         label_id: 'check via user2'
