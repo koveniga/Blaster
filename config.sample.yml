@@ -48,12 +48,16 @@ proxy_checks:
     proxy_ips:            # Priority: 3; if defined and undefined 'proxy_domain_names' and undefined 'proxy_domain_name': use this list of IPs for forward-proxy
       - 192.168.20.2
       - 192.168.20.3
+    add_headers:
+      - 'Header_name: Header_value'
     proxy_port: 3128      # Port for all defined proxies
     proxy_auth:           # Cred for proxies (all IPs checks for all auth creds)
       - user: user1
         password: pass1
+        label_id: 'check via user1'
       - user: user2
         password: pass2
+        label_id: 'check via user2'
     url: 'http://google.com'  # which url must be checked via forward-proxy
     status_code: 200          # status code for success check
     timeout: 10               # timeout for response wait

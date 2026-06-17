@@ -184,17 +184,17 @@ def proxy_check(check_item,metrics_file,T_IPs=[]):
     for IP in IPs:
         print(f"Check {check_item['url']} via proxy {IP}:{check_item['proxy_port']}...")
         for proxy_auth in check_item['proxy_auth']:
-            print(f"Check with username '{proxy_auth['user']}'...")
+            print(f"Check with username '{proxy_auth['user']}'; id_label={proxy_auth['id_label']}...")
             response=http_request_via_proxy(check_item,proxy_auth,IP)
             timestamp_ms = int(time.time() * 1000)
             if response=={}:
-                print('kia_proxy_check{proxy="',check_item['proxy_domain_name'],'", IP="',IP,'",url="',check_item['url'],'",status_code="',check_item['status_code'],'",metric="success_check"} 0 ',timestamp_ms,file=f,sep="")
+                print('kia_proxy_check{proxy="',check_item['proxy_domain_name'],'", IP="',IP,'",url="',check_item['url'],'",status_code="',check_item['status_code'],'",metric="success_check", id_label="',proxy_auth['id_label'],'"} 0 ',timestamp_ms,file=f,sep="")
             else:
                 if str(response.status_code) == str(check_item['status_code']):
-                    print('kia_proxy_check{proxy="',check_item['proxy_domain_name'],'", IP="',IP,'",url="',check_item['url'],'",status_code="',check_item['status_code'],'",metric="success_check"} 1 ',timestamp_ms,file=f,sep="")
+                    print('kia_proxy_check{proxy="',check_item['proxy_domain_name'],'", IP="',IP,'",url="',check_item['url'],'",status_code="',check_item['status_code'],'",metric="success_check",id_label="',proxy_auth['id_label'],'"} 1 ',timestamp_ms,file=f,sep="")
                 else:
                     print(f"{response.status_code} == {check_item['status_code']}")
-                    print('kia_proxy_check{proxy="',check_item['proxy_domain_name'],'", IP="',IP,'",url="',check_item['url'],'",status_code="',check_item['status_code'],'",metric="success_check",login="',proxy_auth['user'],'"} 0 ',timestamp_ms,file=f,sep="")
+                    print('kia_proxy_check{proxy="',check_item['proxy_domain_name'],'", IP="',IP,'",url="',check_item['url'],'",status_code="',check_item['status_code'],'",metric="success_check",login="',proxy_auth['user'],'", id_label="',proxy_auth['id_label'],'"} 0 ',timestamp_ms,file=f,sep="")
 
 def dns_check(check_item,metrics_file):
     for dns_server in check_item['dns_servers']:
