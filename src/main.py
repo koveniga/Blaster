@@ -217,17 +217,22 @@ def proxy_check(check_item,metrics_file,T_IPs=[]):
         labels['IP']=IP
         print(f"Check {check_item['url']} via proxy {IP}:{check_item['proxy_port']}...")
         for proxy_auth in check_item['proxy_auth']:
+            add_labels={}
+            if 'add_labels' in proxy_auth:
+                for custom_label in proxy_auth['add_labels']:
+                    z_label=[item.strip() for item in custom_label.split(':',1)]
+                    add_labels[z_label[0]]=z_label[1]
             print(f"Check with username '{proxy_auth['user']}'; id_label={proxy_auth['id_label']}...")
             response=http_request_via_proxy(check_item,proxy_auth,IP)
             labels['id_label']=proxy_auth['id_label']
             if response=={}:
-                print(generate_metric_string('kia_proxy_check',labels,0),file=f)
+                print(generate_metric_string('kia_proxy_check',labels|add_labels,0),file=f)
             else:
                 if str(response.status_code) == str(check_item['status_code']):
-                    print(generate_metric_string('kia_proxy_check',labels,1),file=f)
+                    print(generate_metric_string('kia_proxy_check',labels|add_labels,1),file=f)
                 else:
                     print(f"{response.status_code} == {check_item['status_code']}")
-                    print(generate_metric_string('kia_proxy_check',labels,0),file=f)
+                    print(generate_metric_string('kia_proxy_check',labels|add_labels,0),file=f)
 
 def dns_check(check_item,metrics_file):
     global GLOBAL_DNS_ERRORS
