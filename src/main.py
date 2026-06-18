@@ -244,7 +244,8 @@ def dns_check(check_item,metrics_file):
             try:
                 print(f"NS={dns_server} --> DOMAIN={domain}")
                 timestamp_ms = int(time.time() * 1000)
-                resolver.resolve(domain, 'A')
+                resolver_answer=resolver.resolve(domain, 'A')
+                print(", ".join([rdata.address for rdata in resolver_answer]))
                 print('kia_dns_probe{dns_server="',dns_server,'",domain="',domain,'", metric="success_check"} 1 ',timestamp_ms,file=f,sep='')
             except Exception as e:
                 GLOBAL_DNS_ERRORS+=1

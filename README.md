@@ -1,2 +1,2 @@
 just try?
---> docker pull sensetjust/sensetjust:blaster-4
+--> docker pull sensetjust/sensetjust:blaster-0.4
