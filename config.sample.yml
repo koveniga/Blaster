@@ -1,5 +1,6 @@
 global:
   cicle_timeout: 10
+  proxy_checks_parralel: 100
 
 dns_checks:
   - dns_servers:
@@ -38,11 +39,7 @@ http_checks:
       password: 'qweqweqwe'
 
 proxy_checks:
-  - proxy_domain_names:   # Priority: 1; if defined: resolves all proxy_domain_names which will used in checks
-      - 'p1.example.com'
-      - 'p2.example.com'
-    proxy_domain_name:    # Priority: 2; if defined and undefined 'proxy_domain_names' use that name to resolve proxy IP for checks
-    proxy_ips:            # Priority: 3; if defined and undefined 'proxy_domain_names' and undefined 'proxy_domain_name': use this list of IPs for forward-proxy
+  - proxy_ips:
       - 192.168.20.2
       - 192.168.20.3
     add_headers: # for request
@@ -54,6 +51,8 @@ proxy_checks:
     proxy_auth:           # Cred for proxies (all IPs checks for all auth creds)
       - user: user1
         password: pass1
+        add_headers:
+          - 'Header2: Value2'
         label_id: 'check via user1' # uniq for label
       - user: user2
         password: pass2
@@ -61,5 +60,5 @@ proxy_checks:
         add_labels:   ## For metrics output on the some auth kreds
           - 'Under_cred_label: 42'
     url: 'http://google.com'  # which url must be checked via forward-proxy
-    status_code: 200          # status code for success check
-    timeout: 10               # timeout for response wait
+    status_code: <200|ANY>    # status code for success check (default: 200)
+    timeout: 10               # timeout for response wait, default: 3

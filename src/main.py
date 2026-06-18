@@ -6,7 +6,10 @@ import os
 import shutil
 import requests
 import dns.resolver
+import random
+import uuid
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 
 CONFIG_PATH=os.getenv('CONFIG_PATH', './config.yml')
 METRICS_RESULT=os.getenv('METRICS_RESULT', './metrics')
@@ -174,66 +177,6 @@ def http_check(check_item,metrics_file):
             print("Request failed")
             print(generate_metric_string('kia_http_check',metric_labels,'0'),file=metrics_file)
 
-def http_request_via_proxy(check_item,proxy_auth,proxy_ip):
-    try:
-        proxy_string=f"{check_item.get('proxy_protocol','http')}://{proxy_auth['user']}:{proxy_auth['password']}@{proxy_ip}:{check_item['proxy_port']}"
-        print(f"proxy_string='{proxy_string}'")
-        session = requests.Session()
-        session.proxies = {
-            "http": proxy_string,
-            "https": proxy_string
-        }
-        if 'add_headers' in check_item:
-            for custom_header in check_item['add_headers']:
-                header_content=[item.strip() for item in custom_header.split(':',1)]
-                session.headers.update({header_content[0]:header_content[1]})
-        return session.get(check_item['url'],timeout=int(check_item.get('timeout',3)))
-    except Exception as e:
-        print(f"Ошибка: {e}")
-        return {}
-
-def proxy_check(check_item,metrics_file,T_IPs=[]):
-    if T_IPs == []:
-        IPs=filter_resolve(resolve_hostname(check_item['proxy_domain_name']),'')
-    else:
-        IPs=T_IPs
-
-    labels={
-      'proxy': check_item['proxy_domain_name'],
-      'IP': '',
-      'url': check_item['url'],
-      'status_code': check_item['status_code'],
-      'metric': 'success_check'
-    }
-    if 'add_labels' in check_item:
-        for custom_label in check_item['add_labels']:
-            z_label=[item.strip() for item in custom_label.split(':',1)]
-            labels[z_label[0]]=z_label[1]
-    if IPs==[]:
-        print(generate_metric_string('kia_proxy_check',labels,0),file=metrics_file)
-        return
-
-    for IP in IPs:
-        labels['IP']=IP
-        print(f"Check {check_item['url']} via proxy {IP}:{check_item['proxy_port']}...")
-        for proxy_auth in check_item['proxy_auth']:
-            add_labels={}
-            if 'add_labels' in proxy_auth:
-                for custom_label in proxy_auth['add_labels']:
-                    z_label=[item.strip() for item in custom_label.split(':',1)]
-                    add_labels[z_label[0]]=z_label[1]
-            print(f"Check with username '{proxy_auth['user']}'; id_label={proxy_auth['id_label']}...")
-            response=http_request_via_proxy(check_item,proxy_auth,IP)
-            labels['id_label']=proxy_auth['id_label']
-            if response=={}:
-                print(generate_metric_string('kia_proxy_check',labels|add_labels,0),file=f)
-            else:
-                if str(response.status_code) == str(check_item['status_code']):
-                    print(generate_metric_string('kia_proxy_check',labels|add_labels,1),file=f)
-                else:
-                    print(f"{response.status_code} == {check_item['status_code']}")
-                    print(generate_metric_string('kia_proxy_check',labels|add_labels,0),file=f)
-
 def dns_check(check_item,metrics_file):
     global GLOBAL_DNS_ERRORS
     for dns_server in check_item['dns_servers']:
@@ -251,6 +194,85 @@ def dns_check(check_item,metrics_file):
                 GLOBAL_DNS_ERRORS+=1
                 print('kia_dns_probe{dns_server="',dns_server,'",domain="',domain,'", metric="success_check"} 0 ',timestamp_ms,file=f,sep='')
                 print(f"ОШИБКА DNS: {type(e).__name__} — {e}")
+
+def request_via_proxy(task):
+    try:
+        task_id=task['task_id']
+        proxy_protocol=task['labels']['proxy_protocol']
+        proxy_user=task['proxy_auth']['user']
+        proxy_pass=task['proxy_auth']['password']
+        proxy_ip=task['labels']['IP']
+        proxy_port=task['labels']['proxy_port']
+        proxy_string=f"{proxy_protocol}://{proxy_user}:{proxy_pass}@{proxy_ip}:{proxy_port}"
+    
+        proxy_auth=task['proxy_auth']
+        print(f"proxy_string='{proxy_string}'; TASK_ID={task_id}")
+        session = requests.Session()
+        session.proxies = {
+            "http": proxy_string,
+            "https": proxy_string
+        }
+        for custom_header in task['add_headers']:
+            header_content=[item.strip() for item in custom_header.split(':',1)]
+            session.headers.update({header_content[0]:header_content[1]})
+        if 'add_header' in proxy_auth:
+            for custom_header in proxy_auth['add_headers']:
+                header_content=[item.strip() for item in custom_header.split(':',1)]
+                session.headers.update({header_content[0]:header_content[1]})
+        if 'add_labels' in proxy_auth:
+            for custom_label in proxy_auth['add_labels']:
+                label_content=[item.strip() for item in custom_label.split(':',1)]
+                task['labels'][label_content[0]]=label_content[1]
+        print(f"TASK_ID='{task_id}' --> Finished")
+        response=session.get(task['labels']['url'],timeout=int(task['labels']['timeout']))
+        if task['labels']['status_code']=='ANY' or response.status_code == task['labels']['status_code']:
+            return generate_metric_string(task['metric_name'],task['labels'],1)
+        else:
+            print(f"TASK_ID='{task_id} --> Response code is not '{task['labels']['status_code']}' ({response.status_code})")
+            return generate_metric_string(task['metric_name'],task['labels'],0)
+    except Exception as e:
+        print(f"TASK_ID='{task_id} --> Error: {e}")
+        return generate_metric_string(task['metric_name'],task['labels'],0)
+        return 
+
+def proxy_list_check(proxy_checks_list,global_config,f):
+    task_list=[]
+    for proxy_check_item in proxy_checks_list:
+        labels={
+          'IP': '',
+          'url': proxy_check_item['url'],
+          'status_code': proxy_check_item.get('status_code',200),
+          'metric': 'success_check',
+          'proxy_port': proxy_check_item['proxy_port'],
+          'timeout': proxy_check_item.get('timeout',3),
+          'proxy_protocol': proxy_check_item.get('proxy_protocol','http')
+        }
+
+        if 'add_labels' in proxy_check_item:
+            for custom_label in proxy_check_item['add_labels']:
+                z_label=[item.strip() for item in custom_label.split(':',1)]
+                labels[z_label[0]]=z_label[1]
+
+        for IP in proxy_check_item['proxy_ips']:
+            labels['IP']=IP
+            for proxy_auth in proxy_check_item['proxy_auth']:
+                task_id=str(uuid.uuid4())
+                labels['id_label']=proxy_auth['id_label']
+                task_list+=[
+                  {
+                    "task_id": task_id,
+                    "metric_name": "kia_proxy_check",
+                    "labels": dict(labels),
+                    "proxy_auth": dict(proxy_auth),
+                    "add_headers": proxy_check_item.get('add_headers',[]),
+                  }
+                ]
+                print(task_list[len(task_list)-1])
+    with ThreadPoolExecutor(max_workers=global_config.get('proxy_checks_parralel',100)) as executor:
+        results = executor.map(request_via_proxy, task_list)
+        final_results = list(results)
+    for res in final_results:
+        print(res,file=f)
 
 while True:
     print(datetime.now())
@@ -291,25 +313,16 @@ while True:
     f.close()
     os.system('cat /tmp/http_checks_results >> /tmp/results')
 
-    print('Proxy checks')
-    f=open('/tmp/proxy_results','w')
-    for item in proxy_checks:
-        print(f"Check {item}")
-        if 'proxy_domain_names' in item:
-            for proxy_domain_name in item['proxy_domain_names']:
-                item['proxy_domain_name']=proxy_domain_name
-                proxy_check(item,f)
-        elif 'proxy_domain_name' in item:
-            proxy_check(item,f)
-        elif 'proxy_ips' in item:
-            item['proxy_domain_name']='CHECK_BY_IP'
-            proxy_check(item,f,item['proxy_ips'])
-    f.close()
+    if proxy_checks!=[]:
+        print('Proxy checks')
+        f=open('/tmp/proxy_results','w')
+        proxy_list_check(proxy_checks,config,f)
+        f.close()
 
     ends=int(time.time())-start
     timestamp_ms = int(time.time() * 1000)
     f=open('/tmp/proxy_results','a')
-    print(f"blaster_version 0.4 {timestamp_ms}",file=f)
+    print(f"blaster_version 0.51 {timestamp_ms}",file=f)
     print(f"kia_cicle_time_seconds {ends} {timestamp_ms}",file=f)
     print(f"blaster_last_update {timestamp_ms}", file=f)
     f.close()
@@ -317,5 +330,9 @@ while True:
     os.system('cat /tmp/proxy_results >> /tmp/results')
 
     shutil.move('/tmp/results',METRICS_RESULT)
-    print(f"Cicle ends. Wait for {cicle_timeout} seconds for resume...")
-    time.sleep(cicle_timeout)
+    delta_sleep=cicle_timeout-ends
+    if delta_sleep<0:
+        print(f'Warning. Cicle was too long >{cicle_timeout} --> delta_sleep=0')
+        delta_sleep=0
+    print(f"Cicle ends. Wait for {delta_sleep} seconds for resume...")
+    time.sleep(delta_sleep)
